@@ -1,0 +1,3 @@
+environment: development
+kafka_brokers: "localhost:9092"
+database_url: "postgres://user:password@localhost:5432/mydb"

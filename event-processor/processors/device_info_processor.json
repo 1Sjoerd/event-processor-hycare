@@ -1,0 +1,9 @@
+{
+    "input": "iot-stream",
+    "output": "device-info",
+    "script": "function calculateSignalStrength(rssi, snr, sf) { var rssi_score = ((rssi + 120) / 90.0) * 10.0; rssi_score = Math.max(0, Math.min(rssi_score, 10)); if (isNaN(rssi_score)) rssi_score = 0; var snr_score = ((snr + 20) / 30.0) * 10.0; snr_score = Math.max(0, Math.min(snr_score, 10)); if (isNaN(snr_score)) snr_score = 0; var sf_score = ((12.0 - sf) / 5.0) * 10.0; sf_score = Math.max(0, Math.min(sf_score, 10)); if (isNaN(sf_score)) sf_score = 0; var connection_score = (1.0 / 3) * rssi_score + (1.0 / 3) * snr_score + (1.0 / 3) * sf_score; if (isNaN(connection_score)) connection_score = 0; return Math.round(Math.max(0, Math.min(connection_score, 10))); } function processEvent(event, existingData) { var newEvent = existingData || {}; newEvent['dev_eui'] = event.device_info.dev_eui; if (event.rx_info && event.rx_info.length > 0 && event.tx_info && event.tx_info.modulation && event.tx_info.modulation.lora) { newEvent['calculatedSignalStrength'] = calculateSignalStrength(event.rx_info[0].rssi, event.rx_info[0].snr, event.tx_info.modulation.lora.spreading_factor); } newEvent['last_message'] = event.time; if (event.event === 'up' && event.object && event.object.batteryLevel !== undefined) { newEvent['batteryLevel'] = event.object.batteryLevel; } else if (existingData && existingData['batteryLevel'] !== undefined) { newEvent['batteryLevel'] = existingData['batteryLevel']; } if (event.event === 'join') { newEvent['joined_at'] = event.time; } else if (existingData && existingData['joined_at'] !== undefined) { newEvent['joined_at'] = existingData['joined_at']; } return newEvent; }",
+    "processors": [],
+    "schema": {
+
+    }
+}
