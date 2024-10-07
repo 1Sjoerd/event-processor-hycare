@@ -5,10 +5,5 @@ import (
 )
 
 func main() {
-	cmd.Execute() // Start de CLI
-	// TODO
-}
-
-func loadConfig() {
-	// TODO: Implement configuration loading
+	cmd.Execute()
 }

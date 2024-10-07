@@ -2,38 +2,37 @@ event-processor/
 │
 ├── cmd/                        # Bevat de main entry points
 │   ├── root.go                 # Cobra en Viper config
-│   └── consumer.go             # consumer commands
+│   └── consumer.go             # Consumer commands (verwerkt binnenkomende events)
 │
-├── internal/
-│   ├── kafka/                  # Kafka-gerelateerde code
-│   │   ├── json_codec.go       # json codec
-│   │   └── string_codec.go     # string codec
-│   │
-│   ├── processors/             # Dynamische processor-logica en repository
-│   │   ├── repository/         # Verschillende repositories voor processors
-│   │   │   ├── repository.go   # Interface voor de processor repository
-│   │   │   ├── db_repository.go # Database repository voor processors
-│   │   │   └── local_repository.go # Lokale repository voor processors (JSON bestanden)
-│   │   └── processor.go        # Generieke processor-logica om events af te handelen
-│   │
-│   └── storage/                # Database gerelateerde code (PostgreSQL)
-│       ├── postgres.go         # PostgreSQL verbinding en queries
-│       └── models.go           # Database modellen voor processors
+├── processors/                 # Dynamische processor-logica
+│   ├── processor.go            # Generieke processor-logica om events af te handelen
+│   ├── event_processor.go      # Generieke logica voor het verwerken van events (inclusief scriptuitvoering)
+│   ├── topic_manager.go        # Beheer van Kafka topics (creëren, controleren, enz.)
+│   ├── producer.go             # Producer logica om verwerkte events naar Kafka topics te sturen
+│   └── helpers.go              # Helper functies zoals map conversies
 │
-├── processors/                 # Lokale JSON-bestanden voor de lokale repository (development)
-│   ├── trap_processor.json     # Voorbeeld JSON bestand voor de Trap Processor
-│   ├── motion_processor.json   # Voorbeeld JSON bestand voor de Motion Processor
-│   ├── device_info_processor.json # Voorbeeld JSON bestand voor Device Info Processor
-│   └── good_nature_processor.json # Voorbeeld JSON bestand voor Good Nature Processor
+├── storage/                    # Database en opslaggerelateerde code
+│   ├── repository/             # Repositories voor processors en opslag
+│   │   ├── local/              # Lokale YAML-bestanden voor de lokale repository (development)
+│   │   │   ├── trap_processor.yaml        # YAML bestand voor Trap Processor
+│   │   │   ├── motion_processor.yaml      # YAML bestand voor Motion Processor
+│   │   │   ├── device_info_processor.yaml # YAML bestand voor Device Info Processor
+│   │   │   └── good_nature_processor.yaml # YAML bestand voor Good Nature Processor
+│   │   ├── db_repository.go              # Database repository voor processors (PostgreSQL)
+│   │   └── local_repository.go           # Lokale repository voor processors (YAML bestanden)
+│   ├── postgres.go             # PostgreSQL verbinding en queries
+│   ├── repository.go           # Interface-definities voor de opslag van processors
+│   └── models.go               # Database modellen voor processors
 │
 ├── test/                       # Unit/integration tests
-│   └── processor_test.go       # Testen van processor afhandeling
+│   ├── processor_test.go       # Testen van processor afhandeling
+│   └── producer_test.go        # Testen van producer functionaliteit
 │
 ├── db/                         # Database migraties en SQL bestanden
-│   └── migrations.sql          # Database migratie bestanden
+│   ├── migrations.sql          # Database migratie bestanden
 │
-├── main.go                     # Het startpunt van de applicatie
-├── config.yaml                 # Het startpunt van de applicatie
+├── main.go                     # Het startpunt van de applicatie (start Kafka consumer en producer)
+├── config.yaml                 # Config bestand
 ├── go.mod                      # Go modules bestand
 ├── go.sum                      # Go modules checksum bestand
 └── README.md                   # Project documentatie
