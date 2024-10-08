@@ -2,36 +2,52 @@ id: device_info_processor
 description: Processes device info events and calculates signal strength
 enabled: true
 input: iot-stream
+hycareItemIds: []
 script: |
-  function processEvent(event) {
+  function processEvent(event, currentData) {
     var parsedEvent = JSON.parse(event);
+    var existingData = JSON.parse(currentData || '{}');
 
-    // Controleer of rx_info bestaat en minstens één element bevat
-    if (!parsedEvent.rx_info || parsedEvent.rx_info.length === 0) {
-      return JSON.stringify({ error: "No rx_info available" });
+    var eventType = parsedEvent.event;
+
+    // Controleer of het een "join" event is of dat rx_info of object ontbreekt
+    if (eventType === "join" || typeof parsedEvent.object === "undefined" || parsedEvent.rx_info.length === 0) {
+      // Als er al bestaande data is, retourneer deze en overschrijf het niet met lege data
+      if (Object.keys(existingData).length > 0) {
+        return JSON.stringify(existingData);
+      }
+      return JSON.stringify({});
     }
 
-    // Bereken de signal strength alleen als rx_info beschikbaar is
-    var rssi_score = ((parsedEvent.rx_info[0].rssi + 120) / 90.0) * 10.0;
-    rssi_score = Math.max(0, Math.min(rssi_score, 10));
-    if (isNaN(rssi_score)) rssi_score = 0;
+    if (eventType === "up") {
+      // Haal batteryLevel op uit parsedEvent
+      var batteryLevel = parsedEvent.object.batteryLevel;
 
-    var snr_score = ((parsedEvent.rx_info[0].snr + 20) / 30.0) * 10.0;
-    snr_score = Math.max(0, Math.min(snr_score, 10));
-    if (isNaN(snr_score)) snr_score = 0;
+      // Bereken de signal strength alleen als rx_info beschikbaar is
+      var rssi_score = ((parsedEvent.rx_info[0].rssi + 120) / 90.0) * 10.0;
+      rssi_score = Math.max(0, Math.min(rssi_score, 10));
+      if (isNaN(rssi_score)) rssi_score = 0;
 
-    var sf_score = ((12.0 - parsedEvent.tx_info.modulation.lora.spreading_factor) / 5.0) * 10.0;
-    sf_score = Math.max(0, Math.min(sf_score, 10));
-    if (isNaN(sf_score)) sf_score = 0;
+      var snr_score = ((parsedEvent.rx_info[0].snr + 20) / 30.0) * 10.0;
+      snr_score = Math.max(0, Math.min(snr_score, 10));
+      if (isNaN(snr_score)) snr_score = 0;
 
-    var connection_score = (1.0 / 3) * rssi_score + (1.0 / 3) * snr_score + (1.0 / 3) * sf_score;
-    connection_score = Math.max(0, Math.min(connection_score, 10));
+      var sf_score = ((12.0 - parsedEvent.tx_info.modulation.lora.spreading_factor) / 5.0) * 10.0;
+      sf_score = Math.max(0, Math.min(sf_score, 10));
+      if (isNaN(sf_score)) sf_score = 0;
 
-    // Maak een nieuw event met alleen calculatedSignalStrength
-    var newEvent = {
-      calculatedSignalStrength: Math.round(connection_score)
-    };
+      var connection_score = (1.0 / 3) * rssi_score + (1.0 / 3) * snr_score + (1.0 / 3) * sf_score;
+      connection_score = Math.max(0, Math.min(connection_score, 10));
 
-    // Retourneer alleen het nieuwe event
-    return JSON.stringify(newEvent);
+      // Maak een nieuw event met calculatedSignalStrength en batteryLevel
+      var newEvent = {
+        calculatedSignalStrength: Math.round(connection_score),
+        batteryLevel: batteryLevel
+      };
+
+      return JSON.stringify(newEvent);
+    }
+
+    return JSON.stringify({});
   }
+

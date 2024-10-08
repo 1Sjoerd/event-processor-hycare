@@ -1,0 +1,11 @@
+id: motion_processor
+description: Processes motion events
+enabled: true
+input: iot-stream
+hycareItemIds:
+  - MOTION_V1
+script: |
+  function processEvent(event) {
+    var parsedEvent = JSON.parse(event);
+    // TODO: Logica voor motion event
+  }

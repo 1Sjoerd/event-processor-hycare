@@ -1,0 +1,11 @@
+id: trap_processor
+description: Processes trap events
+enabled: true
+input: iot-stream
+hycareItemIds:
+  - TRAP_V1
+script: |
+  function processEvent(event) {
+    var parsedEvent = JSON.parse(event);
+    // TODO: Logica voor trap event
+  }

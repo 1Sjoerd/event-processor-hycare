@@ -1,3 +1,5 @@
 hyc-sync-sjoerd/*
 
 kafka/kafka*/
+
+event-processor/cache/

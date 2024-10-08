@@ -1,0 +1,11 @@
+id: good_nature_processor
+description: Processes good nature events
+enabled: true
+input: iot-stream
+hycareItemIds:
+  - GOOD_NATURE_V1
+script: |
+  function processEvent(event) {
+    var parsedEvent = JSON.parse(event);
+    // TODO: Logica voor good nature event
+  }

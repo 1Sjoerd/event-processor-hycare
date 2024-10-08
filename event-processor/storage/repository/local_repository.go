@@ -1,42 +1,69 @@
 package repository
 
 import (
-	"embed"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
 
-	"github.com/1Sjoerd/event-processor-hycare/internal/processors"
-	"github.com/lovoo/goka"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
+
+	"github.com/1Sjoerd/event-processor-hycare/processors"
 )
 
-//go:embed processors/*.yaml
-var folder embed.FS
-
 type LocalRepository struct {
-	basePath string
-	tm       goka.TopicManager
+	processorMap map[string][]*processors.ProcessorConfig
 }
 
-func NewLocalRepository(basePath string, tm goka.TopicManager) *LocalRepository {
-	return &LocalRepository{basePath: basePath, tm: tm}
+func NewLocalRepository() *LocalRepository {
+	return &LocalRepository{
+		processorMap: make(map[string][]*processors.ProcessorConfig),
+	}
 }
 
-func (r *LocalRepository) GetProcessor(name string) (*processors.Processor, error) {
+func (r *LocalRepository) LoadProcessors() error {
+	processorDir := "storage/repository/processors"
 
-	folder.ReadFile(name + ".yaml")
-	// TODO: Implement logic to load processor from JSON
-	data, err := folder.ReadFile(name + ".yaml")
+	files, err := os.ReadDir(processorDir)
 	if err != nil {
-		return nil, fmt.Errorf("error reading processor config file: %w", err)
+		return fmt.Errorf("error reading processor directory: %v", err)
 	}
 
-	var config processors.ProcessorConfig
-	err = yaml.Unmarshal(data, &config)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling YAML: %w", err)
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".yaml") {
+			filePath := filepath.Join(processorDir, file.Name())
+			log.Printf("Loading processor from file: %s", filePath)
+
+			data, err := os.ReadFile(filePath)
+			if err != nil {
+				log.Fatalf("error reading file %s: %v", file.Name(), err)
+			}
+
+			var processor processors.ProcessorConfig
+			err = yaml.Unmarshal(data, &processor)
+			if err != nil {
+				log.Fatalf("error unmarshalling YAML for %s: %v", file.Name(), err)
+			}
+
+			if processor.ID == "device_info_processor" {
+				r.processorMap["device_info_processor"] = []*processors.ProcessorConfig{&processor}
+			}
+			for _, id := range processor.HycareItemIds {
+				r.processorMap[id] = append(r.processorMap[id], &processor)
+			}
+		} else {
+			log.Printf("Skipping non-YAML file: %s", file.Name())
+		}
 	}
 
-	processor := processors.NewProcessor(r.tm, config)
+	if _, found := r.processorMap["device_info_processor"]; !found {
+		log.Fatalf("device_info_processor was not found in the loaded files")
+	}
 
-	return &processor, nil
+	return nil
+}
+
+func (r *LocalRepository) GetProcessorMap() map[string][]*processors.ProcessorConfig {
+	return r.processorMap
 }

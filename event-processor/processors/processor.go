@@ -28,9 +28,7 @@ func StartEventProcessor() {
 
 	log.Printf("Starting event processor with cache directory: %s", storagePath)
 
-	// Callback voor het verwerken van elk bericht
 	cb := func(ctx goka.Context, msg interface{}) {
-		// Parse het originele event om de dev_eui op te halen
 		var parsedEvent map[string]interface{}
 		err := json.Unmarshal([]byte(msg.(string)), &parsedEvent)
 		if err != nil {
@@ -47,14 +45,25 @@ func StartEventProcessor() {
 			log.Fatalf("Error extracting dev_eui from event: expected string but got different type")
 		}
 
-		processedEvent := ProcessEvent(ctx.Key(), msg.(string))
+		var currentData map[string]interface{}
+		if val := ctx.Value(); val != nil {
+			currentData, ok = val.(map[string]interface{})
+			if !ok {
+				log.Println("Continuing without current data.")
+				currentData = make(map[string]interface{})
+			}
+		} else {
+			currentData = make(map[string]interface{})
+		}
+
+		processedEvent := ProcessEvent(ctx.Key(), msg.(string), currentData)
 
 		SendToTopic("device-info-table", processedEvent, devEUI)
 	}
 
 	g := goka.DefineGroup(group,
 		goka.Input(topic, new(codec.String), cb),
-		goka.Persist(new(codec.String)), // Opslag in de group table
+		goka.Persist(new(codec.String)),
 	)
 
 	storageBuilder := storage.DefaultBuilder(storagePath)
@@ -73,9 +82,8 @@ func StartEventProcessor() {
 		}
 	}()
 
-	// Zorg ervoor dat we de processor stoppen bij SIGINT/SIGTERM
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigs, syscall.SIGINT)
 	select {
 	case <-sigs:
 		log.Println("Shutting down processor...")

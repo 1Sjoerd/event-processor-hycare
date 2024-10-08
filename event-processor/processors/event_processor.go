@@ -2,76 +2,98 @@ package processors
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
-	"os"
 
 	"github.com/robertkrimen/otto"
-	"gopkg.in/yaml.v2"
 )
 
 type ProcessorConfig struct {
-	ID          string `yaml:"id"`
-	Description string `yaml:"description"`
-	Enabled     bool   `yaml:"enabled"`
-	Input       string `yaml:"input"`
-	Script      string `yaml:"script"`
-	RetryPolicy struct {
-		Retries int    `yaml:"retries"`
-		Backoff string `yaml:"backoff"`
-	} `yaml:"retry_policy"`
+	ID            string   `yaml:"id"`
+	Description   string   `yaml:"description"`
+	Enabled       bool     `yaml:"enabled"`
+	Input         string   `yaml:"input"`
+	HycareItemIds []string `yaml:"hycareItemIds"`
+	Script        string   `yaml:"script"`
 }
 
-func LoadProcessor(filePath string) (*ProcessorConfig, error) {
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("error reading YAML file: %v", err)
-	}
+var processorMap map[string][]*ProcessorConfig
 
-	var config ProcessorConfig
-	err = yaml.Unmarshal(data, &config)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling YAML: %v", err)
-	}
-
-	return &config, nil
+func InitProcessorMap(procMap map[string][]*ProcessorConfig) {
+	processorMap = procMap
 }
 
-func ProcessEvent(key string, value string) string {
-	processor, err := LoadProcessor("storage/repository/processors/device_info_processor.yaml")
-	if err != nil {
-		log.Fatalf("Failed to load processor: %v", err)
-	}
-
-	vm := otto.New()
-
-	_, err = vm.Run(processor.Script)
-	if err != nil {
-		log.Fatalf("Error executing script: %v", err)
-	}
-
-	// Parse het event als een generieke map om JSON te verwerken zonder struct
+func ProcessEvent(key string, value string, currentData map[string]interface{}) string {
 	var eventMap map[string]interface{}
-	err = json.Unmarshal([]byte(value), &eventMap)
+	err := json.Unmarshal([]byte(value), &eventMap)
 	if err != nil {
 		log.Fatalf("Error parsing event JSON: %v", err)
 	}
 
-	// Marshall het event naar een JSON string om te gebruiken in het JavaScript
+	deviceInfo, ok := eventMap["device_info"].(map[string]interface{})
+	if !ok {
+		log.Fatalf("Error extracting device_info from event: expected map but got %T", eventMap["device_info"])
+	}
+
+	deviceInfoProcessor, found := processorMap["device_info_processor"]
+	if !found || len(deviceInfoProcessor) == 0 {
+		log.Fatalf("device_info_processor is not loaded")
+	}
+
+	// Pas de aanroep van runProcessor aan om currentData mee te geven
+	processedEvent := runProcessor(deviceInfoProcessor[0], eventMap, currentData)
+
+	tags, ok := deviceInfo["tags"].(map[string]interface{})
+	if !ok {
+		return processedEvent
+	}
+
+	hycareItemID, ok := tags["hycareItemId"].(string)
+	if !ok {
+		return processedEvent
+	}
+
+	if processorsToRun, found := processorMap[hycareItemID]; found {
+		for _, processor := range processorsToRun {
+			runProcessor(processor, eventMap, currentData)
+		}
+	}
+
+	return processedEvent
+}
+
+func runProcessor(processor *ProcessorConfig, eventMap map[string]interface{}, currentData map[string]interface{}) string {
+	if processor == nil {
+		log.Fatalf("Processor is nil")
+	}
+
+	vm := otto.New()
+
+	_, err := vm.Run(processor.Script)
+	if err != nil {
+		log.Fatalf("Error executing script for processor %s: %v", processor.ID, err)
+	}
+
 	jsEvent, err := json.Marshal(eventMap)
 	if err != nil {
 		log.Fatalf("Error marshalling event to JSON: %v", err)
 	}
 
-	result, err := vm.Call("processEvent", nil, string(jsEvent))
+	jsCurrentData, err := json.Marshal(currentData)
 	if err != nil {
-		log.Fatalf("Error executing processEvent: %v", err)
+		log.Fatalf("Error marshalling currentData to JSON: %v", err)
+	}
+
+	result, err := vm.Call("processEvent", nil, string(jsEvent), string(jsCurrentData))
+	if err != nil {
+		log.Fatalf("Error executing processEvent for processor %s: %v", processor.ID, err)
 	}
 
 	processedEvent, err := result.ToString()
 	if err != nil {
 		log.Fatalf("Error converting result to string: %v", err)
 	}
+
+	log.Printf("Processor %s executed", processor.ID)
 
 	return processedEvent
 }

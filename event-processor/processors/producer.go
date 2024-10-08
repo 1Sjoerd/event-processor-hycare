@@ -18,6 +18,4 @@ func SendToTopic(topic string, event string, devEUI string) {
 	if err != nil {
 		log.Fatalf("Error emitting message: %v", err)
 	}
-
-	log.Printf("Event sent to topic %s with dev_eui %s: %s", topic, devEUI, event)
 }
